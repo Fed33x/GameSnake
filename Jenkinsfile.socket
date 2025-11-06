@@ -21,6 +21,8 @@ pipeline {
                 echo 'Сборка Docker образа...'
                 script {
                     sh """
+                        # Убеждаемся, что у нас есть права на Docker socket
+                        docker ps > /dev/null 2>&1 || (echo "Ошибка: нет доступа к Docker. Проверьте права на /var/run/docker.sock" && exit 1)
                         docker build -t ${IMAGE_NAME}:${BUILD_NUMBER} .
                         docker tag ${IMAGE_NAME}:${BUILD_NUMBER} ${IMAGE_NAME}:latest
                     """

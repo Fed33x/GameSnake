@@ -2,7 +2,9 @@
 .gitignore
 README.md
 Jenkinsfile
+Jenkinsfile.*
 .dockerignore
 docker-compose.yml
 *.md
+!README.md
 
