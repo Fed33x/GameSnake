@@ -26,6 +26,11 @@ function randomFood() {
 }
 
 document.addEventListener("keydown", (e) => {
+  // Предотвращаем скролл страницы при нажатии стрелок
+  if (["ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight"].includes(e.key)) {
+    e.preventDefault();
+  }
+  
   if (e.key === "ArrowLeft" && direction !== "RIGHT") direction = "LEFT";
   else if (e.key === "ArrowUp" && direction !== "DOWN") direction = "UP";
   else if (e.key === "ArrowRight" && direction !== "LEFT") direction = "RIGHT";
