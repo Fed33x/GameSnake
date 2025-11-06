@@ -1,0 +1,73 @@
+pipeline {
+    agent any
+    
+    environment {
+        DOCKER_HOST = 'tcp://192.168.1.102:2375'
+        IMAGE_NAME = 'snake-game'
+        CONTAINER_NAME = 'snake-game'
+        PORT = '80'
+    }
+    
+    stages {
+        stage('Checkout') {
+            steps {
+                echo 'Получение кода из репозитория...'
+                checkout scm
+            }
+        }
+        
+        stage('Build Docker Image') {
+            steps {
+                echo 'Сборка Docker образа...'
+                script {
+                    sh """
+                        docker build -t ${IMAGE_NAME}:${BUILD_NUMBER} .
+                        docker tag ${IMAGE_NAME}:${BUILD_NUMBER} ${IMAGE_NAME}:latest
+                    """
+                }
+            }
+        }
+        
+        stage('Deploy with Docker Compose') {
+            steps {
+                echo 'Остановка и удаление старого контейнера...'
+                script {
+                    sh """
+                        docker-compose down || true
+                        docker-compose up -d
+                    """
+                }
+            }
+        }
+        
+        stage('Cleanup') {
+            steps {
+                echo 'Очистка старых образов...'
+                script {
+                    sh """
+                        docker image prune -f || true
+                        docker images ${IMAGE_NAME} --format '{{.ID}} {{.Tag}}' | \
+                        grep -v 'latest' | grep -v '${BUILD_NUMBER}' | \
+                        awk '{print \$1}' | \
+                        xargs -r docker rmi -f || true
+                    """
+                }
+            }
+        }
+    }
+    
+    post {
+        success {
+            echo 'Деплой успешно завершен!'
+            echo "Приложение доступно по адресу: http://192.168.1.102"
+        }
+        failure {
+            echo 'Деплой завершился с ошибкой!'
+        }
+        always {
+            echo 'Очистка рабочего пространства...'
+            cleanWs()
+        }
+    }
+}
+

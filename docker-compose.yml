@@ -1,0 +1,16 @@
+version: '3.8'
+
+services:
+  snake-game:
+    image: snake-game:latest
+    container_name: snake-game
+    ports:
+      - "80:80"
+    restart: unless-stopped
+    networks:
+      - snake-network
+
+networks:
+  snake-network:
+    driver: bridge
+

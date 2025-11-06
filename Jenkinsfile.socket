@@ -1,0 +1,91 @@
+pipeline {
+    agent any
+    
+    environment {
+        // DOCKER_HOST не нужен, используется Docker socket
+        IMAGE_NAME = 'snake-game'
+        CONTAINER_NAME = 'snake-game'
+        PORT = '80'
+    }
+    
+    stages {
+        stage('Checkout') {
+            steps {
+                echo 'Получение кода из репозитория...'
+                checkout scm
+            }
+        }
+        
+        stage('Build Docker Image') {
+            steps {
+                echo 'Сборка Docker образа...'
+                script {
+                    sh """
+                        docker build -t ${IMAGE_NAME}:${BUILD_NUMBER} .
+                        docker tag ${IMAGE_NAME}:${BUILD_NUMBER} ${IMAGE_NAME}:latest
+                    """
+                }
+            }
+        }
+        
+        stage('Stop Old Container') {
+            steps {
+                echo 'Остановка старого контейнера...'
+                script {
+                    try {
+                        sh "docker stop ${CONTAINER_NAME} || true"
+                        sh "docker rm ${CONTAINER_NAME} || true"
+                    } catch (Exception e) {
+                        echo "Старый контейнер не найден или уже остановлен: ${e.message}"
+                    }
+                }
+            }
+        }
+        
+        stage('Deploy') {
+            steps {
+                echo 'Запуск нового контейнера...'
+                script {
+                    sh """
+                        docker run -d \
+                            --name ${CONTAINER_NAME} \
+                            -p ${PORT}:80 \
+                            --restart unless-stopped \
+                            ${IMAGE_NAME}:latest
+                    """
+                }
+            }
+        }
+        
+        stage('Cleanup') {
+            steps {
+                echo 'Очистка старых образов...'
+                script {
+                    sh """
+                        docker image prune -f || true
+                        # Удаляем старые образы (кроме latest и текущего build)
+                        docker images ${IMAGE_NAME} --format '{{.ID}} {{.Tag}}' | \
+                        grep -v 'latest' | grep -v '${BUILD_NUMBER}' | \
+                        awk '{print \$1}' | \
+                        xargs -r docker rmi -f || true
+                    """
+                }
+            }
+        }
+    }
+    
+    post {
+        success {
+            echo 'Деплой успешно завершен!'
+            echo "Приложение доступно по адресу: http://192.168.1.102:${PORT}"
+        }
+        failure {
+            echo 'Деплой завершился с ошибкой!'
+        }
+        always {
+            echo 'Очистка рабочего пространства...'
+            cleanWs()
+        }
+    }
+}
+
