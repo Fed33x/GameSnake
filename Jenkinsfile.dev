@@ -1,0 +1,94 @@
+pipeline {
+    agent any
+    
+    environment {
+        //DOCKER_HOST = 'tcp://192.168.1.102:2375'
+        IMAGE_NAME = 'snake-game-test'
+        CONTAINER_NAME = 'snake-game-test'
+        PORT = '8081'
+    }
+    
+    stages {
+        stage('Checkout') {
+            steps {
+                echo 'Получение кода из ветки dev...'
+                checkout scm
+            }
+        }
+        
+        stage('Build Docker Image') {
+            steps {
+                echo 'Сборка тестового Docker образа...'
+                script {
+                    sh """
+                        # Убеждаемся, что у нас есть права на Docker socket
+                        docker ps > /dev/null 2>&1 || (echo "Ошибка: нет доступа к Docker. Проверьте права на /var/run/docker.sock" && exit 1)
+                        docker build -t ${IMAGE_NAME}:${BUILD_NUMBER} .
+                        docker tag ${IMAGE_NAME}:${BUILD_NUMBER} ${IMAGE_NAME}:latest
+                    """
+                }
+            }
+        }
+        
+        stage('Stop Old Container') {
+            steps {
+                echo 'Остановка старого тестового контейнера...'
+                script {
+                    try {
+                        sh "docker stop ${CONTAINER_NAME} || true"
+                        sh "docker rm ${CONTAINER_NAME} || true"
+                    } catch (Exception e) {
+                        echo "Старый контейнер не найден или уже остановлен: ${e.message}"
+                    }
+                }
+            }
+        }
+        
+        stage('Deploy') {
+            steps {
+                echo 'Запуск нового тестового контейнера...'
+                script {
+                    sh """
+                        docker run -d \
+                            --name ${CONTAINER_NAME} \
+                            -p ${PORT}:80 \
+                            --restart unless-stopped \
+                            ${IMAGE_NAME}:latest
+                    """
+                }
+            }
+        }
+        
+        stage('Cleanup') {
+            steps {
+                echo 'Очистка старых тестовых образов...'
+                script {
+                    sh """
+                        docker image prune -f || true
+                        # Удаляем старые образы (кроме latest и текущего build)
+                        docker images ${IMAGE_NAME} --format '{{.ID}} {{.Tag}}' | \
+                        grep -v 'latest' | grep -v '${BUILD_NUMBER}' | \
+                        awk '{print \$1}' | \
+                        xargs -r docker rmi -f || true
+                    """
+                }
+            }
+        }
+    }
+    
+    post {
+        success {
+            echo 'Тестовый деплой успешно завершен!'
+            echo "Тестовое приложение доступно по адресу: http://192.168.1.102:${PORT}"
+            echo "Проверьте тестовую версию перед мержем в main!"
+        }
+        failure {
+            echo 'Тестовый деплой завершился с ошибкой!'
+        }
+        always {
+            echo 'Очистка рабочего пространства...'
+            cleanWs()
+        }
+    }
+}
+
