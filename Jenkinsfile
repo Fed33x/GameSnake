@@ -2,7 +2,7 @@ pipeline {
     agent any
     
     environment {
-        DOCKER_HOST = 'tcp://192.168.1.102:2375'
+        //DOCKER_HOST = 'tcp://192.168.1.102:2375'
         IMAGE_NAME = 'snake-game'
         CONTAINER_NAME = 'snake-game'
         PORT = '80'
